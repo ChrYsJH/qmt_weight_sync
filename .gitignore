@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# uv
+.uv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 数据文件
+data/logs/*.log
+data/positions/*.parquet
+data/temp/*
+
+# 保留目录结构
+!data/logs/.gitkeep
+!data/positions/.gitkeep
+!data/temp/.gitkeep
+
+# 配置文件 (包含敏感信息)
+# 如果需要提交配置模板,可以创建 config.example.py
+# config.py
+.env
+
+# 临时文件
+*.tmp
+*.bak
+*.swp
+*.DS_Store
+Thumbs.db
+
+# Excel 临时文件
+~$*.xlsx
+~$*.xls
+
+# 测试输出
+test_output/
