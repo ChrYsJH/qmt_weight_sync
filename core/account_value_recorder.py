@@ -5,7 +5,7 @@
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
-from core.trader import FactorDirectTrader
+from core.trader import QMTWeightSyncTrader
 from core.logger import logger
 from config import ACCOUNT_VALUE_FILE
 
@@ -14,7 +14,7 @@ class AccountValueRecorder:
     """账户市值记录器"""
 
     def __init__(self):
-        self.trader = FactorDirectTrader()
+        self.trader = QMTWeightSyncTrader()
         self.csv_file = Path(ACCOUNT_VALUE_FILE)
 
     def record_account_value(self) -> bool:

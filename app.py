@@ -14,7 +14,6 @@ sys.path.insert(0, str(project_root))
 
 from config import (
     LOGIN_PASSWORD,
-    STREAMLIT_PORT,
     TEMP_DIR
 )
 from core.logger import logger

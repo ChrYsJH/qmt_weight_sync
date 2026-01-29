@@ -1,5 +1,5 @@
 import time
-from core.trader import FactorDirectTrader
+from core.trader import QMTWeightSyncTrader
 from core.data_handler import load_latest_position, get_target_position
 from core.account_value_recorder import AccountValueRecorder
 from utils.status_manager import SchedulerStatusManager
@@ -11,7 +11,7 @@ class SchedulerRunner:
     """调度执行器"""
 
     def __init__(self):
-        self.trader = FactorDirectTrader()
+        self.trader = QMTWeightSyncTrader()
         self.status_manager = SchedulerStatusManager()
         self.value_recorder = AccountValueRecorder()
         self.calendar = TradingCalendar()

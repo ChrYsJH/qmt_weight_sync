@@ -30,8 +30,7 @@ TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 # ==================== 交易时间配置 ====================
 PREPARE_TIME = "09:25"   # 每日启动准备工作的时间
-RECORD_TIME = "16:53"    # 账户市值记录时间
+RECORD_TIME = "15:10"    # 账户市值记录时间
 
 # ==================== Streamlit 配置 ====================
 LOGIN_PASSWORD = os.getenv("LOGIN_PASSWORD")
-STREAMLIT_PORT = int(os.getenv("STREAMLIT_PORT"))
