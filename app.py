@@ -31,6 +31,8 @@ from utils.market_data import (
     get_index_data,
     calculate_returns
 )
+from xtquant import xtdata
+xtdata.enable_hello = False
 
 
 # 页面配置
@@ -199,6 +201,14 @@ def show_rebalance_details():
                     account_info['total_asset']
                 )
 
+                # 获取实时价格
+                stock_list = list(target_volume.keys())
+                try:
+                    realtime_data = xtdata.get_full_tick(stock_list)
+                except Exception as e:
+                    logger.warning(f"获取实时价格失败: {e}")
+                    realtime_data = {}
+
             # 5. 计算买卖差异
             to_sell = []  # 需要卖出的股票
             to_buy = []   # 需要买入的股票
@@ -215,16 +225,18 @@ def show_rebalance_details():
                         '股票代码': stock_code,
                         '当前持仓': current_vol,
                         '目标持仓': target_vol,
-                        '卖出数量': current_vol - target_vol,
+                        '当前市值': round(current_info['market_value'], 2),
                         '持仓均价': round(current_info['avg_price'], 2)
                     })
                 elif current_vol < target_vol:
                     # 需要买入
+                    price = realtime_data.get(stock_code, {}).get('askPrice', [0]*5)[2]
+                    target_market_value = target_vol * price
                     to_buy.append({
                         '股票代码': stock_code,
                         '当前持仓': current_vol,
                         '目标持仓': target_vol,
-                        '买入数量': target_vol - current_vol
+                        '目标市值': round(target_market_value, 2)
                     })
                 else:
                     no_change += 1
@@ -232,11 +244,13 @@ def show_rebalance_details():
             # 处理目标持仓中但当前未持有的股票
             for stock_code, target_vol in target_volume.items():
                 if stock_code not in current_position and target_vol > 0:
+                    price = realtime_data.get(stock_code, {}).get('askPrice', [0]*5)[2]
+                    target_market_value = target_vol * price
                     to_buy.append({
                         '股票代码': stock_code,
                         '当前持仓': 0,
                         '目标持仓': target_vol,
-                        '买入数量': target_vol
+                        '目标市值': round(target_market_value, 2)
                     })
 
             # 6. 显示结果
@@ -294,12 +308,16 @@ def show_current_position():
             # 转换为 DataFrame
             position_list = []
             for stock_code, info in position.items():
+                # 计算当前价格和盈亏比例
+                current_price = info['market_value'] / info['volume'] if info['volume'] > 0 else 0
+                profit_ratio = (current_price - info['avg_price']) / info['avg_price'] * 100 if info['avg_price'] > 0 else 0
+
                 position_list.append({
                     '股票代码': stock_code,
                     '持仓数量': info['volume'],
-                    '可用数量': info['can_use_volume'],
                     '持仓市值': round(info['market_value'], 2),
-                    '持仓均价': round(info['avg_price'], 2)
+                    '持仓均价': round(info['avg_price'], 2),
+                    '盈亏比例 (%)': round(profit_ratio, 2)
                 })
 
             position_df = pd.DataFrame(position_list)
