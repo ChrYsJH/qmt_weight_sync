@@ -217,7 +217,7 @@ class QMTWeightSyncTrader:
 
         步骤:
         1. 计算差异: 需要卖出和买入的股票
-        2. 先执行所有卖出 (使用买5价 bidPrice[4])
+        2. 先执行所有卖出 (使用买3价 bidPrice[2])
         3. 等待卖单完全成交
         4. 再执行所有买入 (使用卖3价 askPrice[2])
         5. 等待买单完全成交
@@ -274,10 +274,10 @@ class QMTWeightSyncTrader:
                     logger.warning(f"未找到股票 {stock_code} 的实时行情,跳过卖出")
                     continue
 
-                price = realtime_data[stock_code]['bidPrice'][4]  # 买5价
+                price = realtime_data[stock_code]['bidPrice'][2]  # 买3价
 
                 if price == 0:
-                    logger.warning(f"股票 {stock_code} 的买5价为0,跳过卖出")
+                    logger.warning(f"股票 {stock_code} 的买3价为0,跳过卖出")
                     continue
 
                 self.xt_trader.order_stock(

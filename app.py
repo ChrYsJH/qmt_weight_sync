@@ -491,6 +491,65 @@ def show_account_overview():
         logger.error("加载收益率对比图表失败", exc_info=True)
 
 
+def execute_immediate_rebalance():
+    """手动立即执行调仓"""
+    try:
+        # 1. 加载最新持仓数据
+        df = load_latest_position()
+        if df is None or len(df) == 0:
+            st.error("❌ 未找到持仓数据文件")
+            return False
+
+        # 2. 获取目标持仓
+        target_df = get_target_position(df)
+        if len(target_df) == 0:
+            st.error("❌ 目标持仓为空")
+            return False
+
+        st.info(f"📊 目标持仓包含 {len(target_df)} 只股票")
+
+        # 3. 连接交易账户
+        trader = QMTWeightSyncTrader()
+        if not trader.connect():
+            st.error("❌ 连接交易账户失败")
+            return False
+
+        st.success("✅ 交易账户连接成功")
+
+        # 4. 获取账户信息
+        account_info = trader.get_account_info()
+        st.info(f"💰 总资产: {account_info['total_asset']:.2f}, 可用资金: {account_info['cash']:.2f}")
+
+        # 5. 获取当前持仓
+        current_position = trader.get_current_position()
+        st.info(f"📦 当前持有 {len(current_position)} 只股票")
+
+        # 6. 计算目标股数
+        target_volumes = trader.calculate_target_volume(
+            target_df,
+            account_info['total_asset']
+        )
+        st.info(f"🎯 计算完成，目标持仓 {len(target_volumes)} 只股票")
+
+        # 7. 执行调仓
+        with st.spinner("正在执行调仓..."):
+            success = trader.execute_rebalance(target_volumes, current_position)
+
+        if success:
+            st.success("✅ 调仓执行成功！")
+            logger.info("手动调仓执行成功")
+            return True
+        else:
+            st.error("❌ 调仓执行失败")
+            logger.error("手动调仓执行失败")
+            return False
+
+    except Exception as e:
+        st.error(f"❌ 执行调仓时发生错误: {e}")
+        logger.error(f"手动调仓执行错误: {e}", exc_info=True)
+        return False
+
+
 def show_scheduler_status():
     """显示调度器状态（只读）"""
     st.header("⚙️ 调度服务状态")
@@ -528,6 +587,18 @@ def show_scheduler_status():
     except Exception as e:
         st.error(f"读取调度状态失败: {e}")
         logger.error("读取调度状态失败", exc_info=True)
+
+    # 添加立即调仓按钮
+    st.divider()
+    st.subheader("手动操作")
+
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        if st.button("🚀 立即调仓", type="primary", key="immediate_rebalance"):
+            execute_immediate_rebalance()
+
+    with col2:
+        st.caption("⚠️ 点击后将立即根据最新的目标持仓文件执行调仓操作")
 
 
 def main_app():
