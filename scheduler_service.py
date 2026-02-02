@@ -17,7 +17,8 @@ sys.path.insert(0, str(project_root))
 from config import PREPARE_TIME, RECORD_TIME
 from core.scheduler_runner import SchedulerRunner
 from utils.status_manager import SchedulerStatusManager
-from core.logger import logger
+from core.logger import create_service_logger
+logger = create_service_logger('scheduler', 'scheduler.log')
 
 # 调度器配置
 SCHEDULER_CHECK_INTERVAL = 30  # 状态更新检查间隔（秒）

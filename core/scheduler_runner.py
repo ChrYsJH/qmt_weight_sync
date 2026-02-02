@@ -4,7 +4,8 @@ from core.data_handler import load_latest_position, get_target_position
 from core.account_value_recorder import AccountValueRecorder
 from utils.status_manager import SchedulerStatusManager
 from utils.trading_calendar import TradingCalendar
-from core.logger import logger
+from core.logger import create_service_logger
+logger = create_service_logger('scheduler', 'scheduler.log')
 from datetime import datetime, timedelta
 
 class SchedulerRunner:

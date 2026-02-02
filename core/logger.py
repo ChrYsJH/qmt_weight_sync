@@ -84,3 +84,18 @@ class CustomLogger:
 
 # 创建全局 logger 实例，日志文件路径改为 data/logs/app.log
 logger = CustomLogger('qmt_weight_sync', log_file=str(LOG_DIR / 'app.log'))
+
+
+def create_service_logger(service_name, log_file_name):
+    """
+    为特定服务创建独立的 logger 实例
+
+    Args:
+        service_name: 服务名称（用于 logger 名称）
+        log_file_name: 日志文件名（如 'web.log'）
+
+    Returns:
+        CustomLogger: 独立的 logger 实例
+    """
+    log_file_path = LOG_DIR / log_file_name
+    return CustomLogger(f'qmt_weight_sync.{service_name}', log_file=str(log_file_path))

@@ -16,7 +16,8 @@ from config import (
     LOGIN_PASSWORD,
     TEMP_DIR
 )
-from core.logger import logger
+from core.logger import create_service_logger
+logger = create_service_logger('web', 'web.log')
 from core.data_handler import (
     parse_position_file,
     validate_and_filter,
