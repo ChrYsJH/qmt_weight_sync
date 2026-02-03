@@ -136,13 +136,25 @@ class QMTWeightSyncTrader:
         """
         positions = self.xt_trader.query_stock_positions(self.xt_account)
         cur_position_dict = {}
+        filtered_count = 0
+
         for pos in positions:
+            # 过滤负数和零值持仓
+            if pos.can_use_volume <= 0:
+                logger.warning(f"过滤异常持仓: {pos.stock_code}, "
+                              f"volume={pos.volume}, can_use_volume={pos.can_use_volume}")
+                filtered_count += 1
+                continue
+
             cur_position_dict[pos.stock_code] = {
                 'volume': pos.volume,
                 'can_use_volume': pos.can_use_volume,
                 'market_value': pos.market_value,
                 'avg_price': pos.avg_price
             }
+
+        if filtered_count > 0:
+            logger.info(f"已过滤 {filtered_count} 条异常持仓数据")
 
         logger.info(f"当前持仓: {len(cur_position_dict)} 只股票")
         return cur_position_dict
