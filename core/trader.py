@@ -140,7 +140,7 @@ class QMTWeightSyncTrader:
 
         for pos in positions:
             # 过滤负数和零值持仓
-            if pos.can_use_volume <= 0:
+            if pos.volume <= 0:
                 logger.warning(f"过滤异常持仓: {pos.stock_code}, "
                               f"volume={pos.volume}, can_use_volume={pos.can_use_volume}")
                 filtered_count += 1
