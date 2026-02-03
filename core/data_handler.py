@@ -27,7 +27,7 @@ MARKET_CODE_MAP = {
 from core.logger import logger
 
 
-def parse_wide_format_file(file_path: str) -> pd.DataFrame:
+def parse_wide_format_file(file_path: str, upload_date: str = None) -> pd.DataFrame:
     """
     解析宽格式持仓文件（日期在列名中）
 
@@ -43,6 +43,7 @@ def parse_wide_format_file(file_path: str) -> pd.DataFrame:
 
     Args:
         file_path: 文件路径
+        upload_date: 上传日期 (YYYYMMDD格式)，如果提供则使用此日期，否则从文件中提取
 
     Returns:
         pd.DataFrame: 长格式持仓数据
@@ -58,44 +59,51 @@ def parse_wide_format_file(file_path: str) -> pd.DataFrame:
     else:
         raise ValueError(f"不支持的文件格式: {file_path_obj.suffix}")
 
-    # 第一行第二列是日期（Excel 序列号）
-    excel_date = df.iloc[0, 1]
-
-    # 转换 Excel 日期序列号为 YYYYMMDD
-    if isinstance(excel_date, (int, float)):
-        # Excel 日期从 1899-12-30 开始计数
-        python_date = datetime(1899, 12, 30) + timedelta(days=int(excel_date))
-        date_str = python_date.strftime('%Y%m%d')
-        logger.info(f"Excel 日期序列号 {excel_date} 转换为 {date_str}")
-    elif isinstance(excel_date, str):
-        # 处理 "1月26日" 这种中文日期格式
-        if "月" in excel_date and "日" in excel_date:
-            try:
-                import re
-                match = re.search(r'(\d+)月(\d+)日', excel_date)
-                if match:
-                    month = int(match.group(1))
-                    day = int(match.group(2))
-                    year = datetime.now().year
-                    # 如果当前月份是1月，而文件是12月，可能意味着是去年的数据（虽然在这个上下文中不太可能，但为了健壮性）
-                    # 这里简化处理，直接使用当前年份
-                    python_date = datetime(year, month, day)
-                    date_str = python_date.strftime('%Y%m%d')
-                    logger.info(f"中文日期字符串 {excel_date} 转换为 {date_str}")
-                else:
-                    raise ValueError(f"无法解析中文日期格式: {excel_date}")
-            except Exception as e:
-                 raise ValueError(f"解析中文日期出错: {e}")
-        else:
-            # 尝试解析常规日期字符串
-            try:
-                python_date = pd.to_datetime(excel_date)
-                date_str = python_date.strftime('%Y%m%d')
-                logger.info(f"日期字符串 {excel_date} 转换为 {date_str}")
-            except:
-                raise ValueError(f"无法解析日期: {excel_date}")
+    # 确定使用的日期
+    if upload_date:
+        # 使用传入的上传日期
+        date_str = upload_date
+        logger.info(f"使用上传日期: {date_str}")
     else:
-        raise ValueError(f"未知日期格式类型: {type(excel_date)}")
+        # 从文件中提取日期（保留原有逻辑作为后备）
+        # 第一行第二列是日期（Excel 序列号）
+        excel_date = df.iloc[0, 1]
+
+        # 转换 Excel 日期序列号为 YYYYMMDD
+        if isinstance(excel_date, (int, float)):
+            # Excel 日期从 1899-12-30 开始计数
+            python_date = datetime(1899, 12, 30) + timedelta(days=int(excel_date))
+            date_str = python_date.strftime('%Y%m%d')
+            logger.info(f"Excel 日期序列号 {excel_date} 转换为 {date_str}")
+        elif isinstance(excel_date, str):
+            # 处理 "1月26日" 这种中文日期格式
+            if "月" in excel_date and "日" in excel_date:
+                try:
+                    import re
+                    match = re.search(r'(\d+)月(\d+)日', excel_date)
+                    if match:
+                        month = int(match.group(1))
+                        day = int(match.group(2))
+                        year = datetime.now().year
+                        # 如果当前月份是1月，而文件是12月，可能意味着是去年的数据（虽然在这个上下文中不太可能，但为了健壮性）
+                        # 这里简化处理，直接使用当前年份
+                        python_date = datetime(year, month, day)
+                        date_str = python_date.strftime('%Y%m%d')
+                        logger.info(f"中文日期字符串 {excel_date} 转换为 {date_str}")
+                    else:
+                        raise ValueError(f"无法解析中文日期格式: {excel_date}")
+                except Exception as e:
+                     raise ValueError(f"解析中文日期出错: {e}")
+            else:
+                # 尝试解析常规日期字符串
+                try:
+                    python_date = pd.to_datetime(excel_date)
+                    date_str = python_date.strftime('%Y%m%d')
+                    logger.info(f"日期字符串 {excel_date} 转换为 {date_str}")
+                except:
+                    raise ValueError(f"无法解析日期: {excel_date}")
+        else:
+            raise ValueError(f"未知日期格式类型: {type(excel_date)}")
 
     # 跳过第一行，提取股票代码和权重
     stock_data = df.iloc[1:].copy()
@@ -111,7 +119,7 @@ def parse_wide_format_file(file_path: str) -> pd.DataFrame:
     return result
 
 
-def parse_position_file(file_path: str) -> pd.DataFrame:
+def parse_position_file(file_path: str, upload_date: str = None) -> pd.DataFrame:
     """
     解析持仓文件 (xlsx/csv)
 
@@ -121,6 +129,7 @@ def parse_position_file(file_path: str) -> pd.DataFrame:
 
     Args:
         file_path: 文件路径
+        upload_date: 上传日期 (YYYYMMDD格式)，如果提供则使用此日期
 
     Returns:
         pd.DataFrame: 标准化的持仓数据 (date, stock_code, weight)
@@ -140,7 +149,7 @@ def parse_position_file(file_path: str) -> pd.DataFrame:
         raise ValueError(f"不支持的文件格式: {file_path_obj.suffix}")
 
     # 权重文件格式为：第一行包含日期，第一列代码，第二列权重
-    df = parse_wide_format_file(file_path)
+    df = parse_wide_format_file(file_path, upload_date=upload_date)
 
     logger.info(f"成功解析持仓文件,共 {len(df)} 行数据")
     return df

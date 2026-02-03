@@ -7,6 +7,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from pathlib import Path
 import sys
+from datetime import datetime, timedelta
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent
@@ -81,17 +82,58 @@ def handle_file_upload(uploaded_file):
         return
 
     try:
+        # 获取上传时间，根据9:30分界点确定日期
+        now = datetime.now()
+        current_time = now.time()
+        cutoff_time = datetime.strptime("09:30", "%H:%M").time()
+
+        if current_time < cutoff_time:
+            # 9:30之前，使用当天日期
+            upload_date = now.strftime('%Y%m%d')
+            logger.info(f"上传时间 {now.strftime('%H:%M:%S')} < 09:30，使用当天日期: {upload_date}")
+        else:
+            # 9:30及之后，使用下一个交易日
+            try:
+                # 获取未来30天的交易日列表
+                today_str = now.strftime('%Y%m%d')
+                end_date = (now + timedelta(days=30)).strftime('%Y%m%d')
+                trading_dates = xtdata.get_trading_dates('SH', start_time=today_str, end_time=end_date)
+
+                if trading_dates is not None and len(trading_dates) > 0:
+                    # 找到第一个大于今天的交易日
+                    next_trading_day = None
+                    for trade_date in trading_dates:
+                        if trade_date > today_str:
+                            next_trading_day = trade_date
+                            break
+
+                    if next_trading_day:
+                        upload_date = next_trading_day
+                        logger.info(f"上传时间 {now.strftime('%H:%M:%S')} >= 09:30，使用下一个交易日: {upload_date}")
+                    else:
+                        # 如果找不到下一个交易日，回退到简单的次日逻辑
+                        upload_date = (now + timedelta(days=1)).strftime('%Y%m%d')
+                        logger.warning(f"无法获取下一个交易日，使用次日日期: {upload_date}")
+                else:
+                    # 如果获取交易日失败，回退到简单的次日逻辑
+                    upload_date = (now + timedelta(days=1)).strftime('%Y%m%d')
+                    logger.warning(f"获取交易日列表失败，使用次日日期: {upload_date}")
+            except Exception as e:
+                # 如果xtdata调用失败，回退到简单的次日逻辑
+                upload_date = (now + timedelta(days=1)).strftime('%Y%m%d')
+                logger.warning(f"获取下一个交易日失败: {e}，使用次日日期: {upload_date}")
+
         # 保存临时文件
         temp_file_path = TEMP_DIR / uploaded_file.name
         with open(temp_file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
         logger.info(f"文件已上传: {uploaded_file.name}")
-        st.success(f"文件已上传: {uploaded_file.name}")
+        st.success(f"文件已上传: {uploaded_file.name} (日期: {upload_date})")
 
-        # 解析文件
+        # 解析文件 - 传入上传日期
         with st.spinner("正在解析文件..."):
-            df = parse_position_file(str(temp_file_path))
+            df = parse_position_file(str(temp_file_path), upload_date=upload_date)
 
         st.success(f"解析成功: 共 {len(df)} 行数据")
 
@@ -119,7 +161,7 @@ def handle_file_upload(uploaded_file):
             date_df = df[df['date'] == date]
             save_position_to_parquet(date_df, date)
 
-        st.success(f"持仓数据已保存, 共 {len(dates)} 个日期")
+        st.success(f"持仓数据已保存为: position_{upload_date}.parquet")
 
     except Exception as e:
         st.error(f"处理文件时发生错误: {e}")
