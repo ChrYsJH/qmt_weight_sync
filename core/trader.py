@@ -242,7 +242,7 @@ class QMTWeightSyncTrader:
     @staticmethod
     def _split_order_volume(volume: int, max_per_order: int = 100000) -> list:
         """
-        将订单数量拆分为多笔（用于科创版限价单限制）
+        将订单数量拆分为多笔（应对单笔限价单数量限制）
 
         Args:
             volume: 总数量
@@ -340,24 +340,24 @@ class QMTWeightSyncTrader:
                     logger.warning(f"股票 {stock_code} 的买5价为0,跳过卖出")
                     continue
 
-                # 判断是否为科创版股票，需要分笔下单
-                if self._is_star_market(stock_code):
-                    splits = self._split_order_volume(volume)
-                    logger.info(f"  [科创版分笔] {stock_code}: 总数量={volume}, 拆分为{len(splits)}笔: {splits}")
+                # 所有股票统一使用分笔下单逻辑
+                splits = self._split_order_volume(volume)
 
-                    for i, split_volume in enumerate(splits, 1):
-                        self.xt_trader.order_stock(
-                            self.xt_account, stock_code, xtconstant.STOCK_SELL, split_volume,
-                            xtconstant.FIX_PRICE, price, "qmt_weight_sync", f"sell_stock_split_{i}"
-                        )
-                        logger.info(f"    [下单卖出-第{i}笔] {stock_code}: 数量={split_volume}, 价格={price:.2f}")
-                else:
-                    # 非科创版，正常下单
+                # 如果需要分笔，记录日志
+                if len(splits) > 1:
+                    logger.info(f"  [分笔下单] {stock_code}: 总数量={volume}, 拆分为{len(splits)}笔: {splits}")
+
+                for i, split_volume in enumerate(splits, 1):
                     self.xt_trader.order_stock(
-                        self.xt_account, stock_code, xtconstant.STOCK_SELL, volume,
-                        xtconstant.FIX_PRICE, price, "qmt_weight_sync", "sell_stock"
+                        self.xt_account, stock_code, xtconstant.STOCK_SELL, split_volume,
+                        xtconstant.FIX_PRICE, price, "qmt_weight_sync", f"sell_stock_split_{i}"
                     )
-                    logger.info(f"  [下单卖出] {stock_code}: 数量={volume}, 价格={price:.2f}")
+
+                    # 根据是否分笔调整日志信息
+                    if len(splits) > 1:
+                        logger.info(f"    [下单卖出-第{i}笔] {stock_code}: 数量={split_volume}, 价格={price:.2f}")
+                    else:
+                        logger.info(f"  [下单卖出] {stock_code}: 数量={split_volume}, 价格={price:.2f}")
 
             # 3. 等待卖单完全成交
             logger.info("等待卖单成交...")
@@ -389,24 +389,24 @@ class QMTWeightSyncTrader:
                     logger.warning(f"股票 {stock_code} 的卖5价为0,跳过买入")
                     continue
 
-                # 判断是否为科创版股票，需要分笔下单
-                if self._is_star_market(stock_code):
-                    splits = self._split_order_volume(volume)
-                    logger.info(f"  [科创版分笔] {stock_code}: 总数量={volume}, 拆分为{len(splits)}笔: {splits}")
+                # 所有股票统一使用分笔下单逻辑
+                splits = self._split_order_volume(volume)
 
-                    for i, split_volume in enumerate(splits, 1):
-                        self.xt_trader.order_stock(
-                            self.xt_account, stock_code, xtconstant.STOCK_BUY, split_volume,
-                            xtconstant.FIX_PRICE, price, "qmt_weight_sync", f"buy_stock_split_{i}"
-                        )
-                        logger.info(f"    [下单买入-第{i}笔] {stock_code}: 数量={split_volume}, 价格={price:.2f}")
-                else:
-                    # 非科创版，正常下单
+                # 如果需要分笔，记录日志
+                if len(splits) > 1:
+                    logger.info(f"  [分笔下单] {stock_code}: 总数量={volume}, 拆分为{len(splits)}笔: {splits}")
+
+                for i, split_volume in enumerate(splits, 1):
                     self.xt_trader.order_stock(
-                        self.xt_account, stock_code, xtconstant.STOCK_BUY, volume,
-                        xtconstant.FIX_PRICE, price, "qmt_weight_sync", "buy_stock"
+                        self.xt_account, stock_code, xtconstant.STOCK_BUY, split_volume,
+                        xtconstant.FIX_PRICE, price, "qmt_weight_sync", f"buy_stock_split_{i}"
                     )
-                    logger.info(f"  [下单买入] {stock_code}: 数量={volume}, 价格={price:.2f}")
+
+                    # 根据是否分笔调整日志信息
+                    if len(splits) > 1:
+                        logger.info(f"    [下单买入-第{i}笔] {stock_code}: 数量={split_volume}, 价格={price:.2f}")
+                    else:
+                        logger.info(f"  [下单买入] {stock_code}: 数量={split_volume}, 价格={price:.2f}")
 
             # 5. 等待买单完全成交
             logger.info("等待买单成交...")
