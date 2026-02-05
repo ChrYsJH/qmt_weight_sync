@@ -84,17 +84,6 @@ class SchedulerRunner:
             current_position = self.trader.get_current_position()
             logger.info(f"当前持有 {len(current_position)} 只股票")
 
-            # 6. 计算目标股数 (使用 9:25 的开盘价/集合竞价价格)
-            logger.info("步骤 6: 计算目标股数...")
-            target_volumes = self.trader.calculate_target_volume(
-                target_df,
-                account_info['total_asset']
-            )
-            logger.info(f"计算完成，目标持仓 {len(target_volumes)} 只股票")
-            
-            # 预告交易计划
-            self._log_trade_plan(target_volumes, current_position)
-
             # ================= 阶段 2: 等待 =================
             
             logger.info("-" * 80)
@@ -102,10 +91,30 @@ class SchedulerRunner:
             self._wait_until_open(target_hour=9, target_minute=30)
             
             # ================= 阶段 3: 执行 =================
-            
+
             logger.info("-" * 80)
             logger.info("触发时间已到，开始执行交易 (09:30)")
             logger.info("-" * 80)
+
+            # 6. 获取开盘价并计算目标股数
+            logger.info("步骤 6: 获取开盘价并计算目标股数...")
+            target_volumes = self.trader.calculate_target_volume(
+                target_df,
+                account_info['total_asset']
+            )
+
+            if not target_volumes:
+                logger.error("计算目标股数失败，无法执行调仓")
+                self.status_manager.mark_completed(False, "计算目标股数失败")
+                logger.error("=" * 80)
+                logger.error("定时调仓执行失败")
+                logger.error("=" * 80)
+                return False
+
+            logger.info(f"计算完成，目标持仓 {len(target_volumes)} 只股票")
+
+            # 打印详细的交易计划
+            self._log_trade_plan(target_volumes, current_position)
 
             # 7. 执行调仓
             logger.info("步骤 7: 执行调仓...")

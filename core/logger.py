@@ -21,22 +21,27 @@ class CustomLogger:
         self.logger = logging.getLogger(name)
         self.logger.setLevel(level)
 
-        # 定义输出格式
-        formatter = Formatter(
-            '%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
+        # 检查是否已有handler，避免重复添加
+        if not self.logger.handlers:
+            # 定义输出格式
+            formatter = Formatter(
+                '%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
 
-        # 控制台输出
-        console_handler = StreamHandler(sys.stdout)
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
+            # 控制台输出
+            console_handler = StreamHandler(sys.stdout)
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
 
-        # 文件输出
-        if log_file:
-            file_handler = FileHandler(log_file, mode='a', encoding='utf-8')
-            file_handler.setFormatter(formatter)
-            self.logger.addHandler(file_handler)
+            # 文件输出
+            if log_file:
+                file_handler = FileHandler(log_file, mode='a', encoding='utf-8')
+                file_handler.setFormatter(formatter)
+                self.logger.addHandler(file_handler)
+
+        # 防止日志传播到父logger
+        self.logger.propagate = False
 
     def _log(self, level, msg, *args, **kwargs):
         # 获取调用日志的文件名和行号
