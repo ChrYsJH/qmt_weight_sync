@@ -4,7 +4,7 @@
 """
 import time
 import pandas as pd
-from typing import Dict, Optional
+from typing import Dict
 from datetime import datetime
 
 # xtquant 相关导入
@@ -26,12 +26,15 @@ from config import (
 from core.logger import logger
 
 # 交易等待配置
-MAX_WAIT_TIME = 300  # 等待委托成交的最大时间（秒）
-CHECK_INTERVAL = 2   # 检查委托成交的时间间隔（秒）
+CHECK_INTERVAL = 5   # 检查委托成交的时间间隔（秒）
 
 
 class MyXtQuantTraderCallback(XtQuantTraderCallback):
     """交易回调类"""
+
+    def __init__(self):
+        super().__init__()
+        self.failed_orders = set()
 
     def on_disconnected(self):
         logger.warning(f"{datetime.now()} 连接断开回调")
@@ -44,12 +47,18 @@ class MyXtQuantTraderCallback(XtQuantTraderCallback):
 
     def on_order_error(self, order_error):
         logger.error(f"委托报错回调 {order_error.order_remark} {order_error.error_msg}")
+        # 记录失败的订单
+        self.failed_orders.add(order_error.order_remark)
 
     def on_cancel_error(self, cancel_error):
         logger.error(f"{datetime.now()} 撤单错误回调")
 
     def on_account_status(self, status):
         logger.info(f"{datetime.now()} 账户状态回调")
+
+    def clear_failed_orders(self):
+        """清除失败订单记录"""
+        self.failed_orders.clear()
 
 
 class QMTWeightSyncTrader:
@@ -293,6 +302,9 @@ class QMTWeightSyncTrader:
         logger.info("开始执行调仓")
         logger.info("=" * 60)
 
+        # 清除之前的失败订单记录
+        self.callback.clear_failed_orders()
+
         # 1. 计算差异
         sell_list = []  # 需要卖出的股票
         buy_list = []   # 需要买入的股票
@@ -361,9 +373,7 @@ class QMTWeightSyncTrader:
 
             # 3. 等待卖单完全成交
             logger.info("等待卖单成交...")
-            if not self.wait_for_orders_completion():
-                logger.error("卖单等待成交超时")
-                return False
+            self.wait_for_orders_completion()
 
         # 4. 执行买入
         if buy_list:
@@ -410,33 +420,28 @@ class QMTWeightSyncTrader:
 
             # 5. 等待买单完全成交
             logger.info("等待买单成交...")
-            if not self.wait_for_orders_completion():
-                logger.error("买单等待成交超时")
-                return False
+            self.wait_for_orders_completion()
 
         logger.info("=" * 60)
         logger.info("调仓完成")
         logger.info("=" * 60)
         return True
 
-    def wait_for_orders_completion(self, max_wait_time: int = MAX_WAIT_TIME,
-                                    check_interval: int = CHECK_INTERVAL) -> bool:
+    def wait_for_orders_completion(self, check_interval: int = CHECK_INTERVAL) -> bool:
         """
         等待委托单完全成交
 
-        参考: traderbackend_miniqmt.py:290-333
+        通过智能过滤失败订单,只等待有效订单成交,无超时限制
 
         Args:
-            max_wait_time: 最大等待时间(秒), 默认 5 分钟
             check_interval: 检查间隔(秒), 默认 2 秒
 
         Returns:
-            bool: True 表示所有委托单已成交, False 表示超时或出现错误
+            bool: True 表示所有有效委托单已成交
         """
-        start_time = time.time()
-        logger.info(f"开始等待委托单成交 (最大等待时间: {max_wait_time}秒)...")
+        logger.info("开始等待委托单成交...")
 
-        while time.time() - start_time < max_wait_time:
+        while True:
             try:
                 # 查询当日委托单
                 orders = self.xt_trader.query_stock_orders(self.xt_account, False)
@@ -445,11 +450,25 @@ class QMTWeightSyncTrader:
                     logger.info("没有待成交的委托单")
                     return True
 
-                # 检查未完全成交的委托单
-                pending_orders = [order for order in orders if order.traded_volume < order.order_volume]
+                # 检查未完全成交的委托单，排除失败的订单
+                pending_orders = []
+                failed_count = 0
+
+                for order in orders:
+                    if order.traded_volume < order.order_volume:
+                        # 检查是否是失败订单
+                        if order.order_remark in self.callback.failed_orders:
+                            failed_count += 1
+                            logger.debug(f"  跳过失败订单: {order.stock_code} ({order.order_remark})")
+                        else:
+                            pending_orders.append(order)
+
+                # 如果有失败订单,记录日志
+                if failed_count > 0:
+                    logger.warning(f"检测到 {failed_count} 个失败订单,已从等待列表中排除")
 
                 if not pending_orders:
-                    logger.info("所有委托单已完全成交")
+                    logger.info("所有有效委托单已完全成交")
                     return True
 
                 # 记录待成交的委托单信息
@@ -465,6 +484,3 @@ class QMTWeightSyncTrader:
             except Exception as e:
                 logger.error(f"查询委托单状态时出错: {e}")
                 time.sleep(check_interval)
-
-        logger.warning(f"等待委托单成交超时 ({max_wait_time}秒)")
-        return False
