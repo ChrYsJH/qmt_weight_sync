@@ -472,7 +472,7 @@ def show_account_overview():
                     index_df = get_index_data(start_date, end_date)
 
                 if len(index_df) == 0:
-                    st.warning("无法获取上证指数数据（可能指数数据源暂时无法访问，或日期范围内无有效交易日数据）")
+                    st.warning(f"无法获取上证指数数据，查询范围：{start_date.strftime('%Y-%m-%d')} 至 {end_date.strftime('%Y-%m-%d')}")
                 else:
                     # 计算账户收益率
                     account_returns = calculate_returns(history_df, 'total_asset', 'date')

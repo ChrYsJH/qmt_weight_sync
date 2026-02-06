@@ -68,11 +68,9 @@ def get_index_data(start_date, end_date) -> pd.DataFrame:
         else:
             end_date_str = str(end_date).replace("-", "")
 
-        # 使用东方财富API获取上证指数数据
-        # secid='90.000001': 90表示指数类型，000001是上证指数代码
         url = 'https://push2his.eastmoney.com/api/qt/stock/kline/get'
         params = {
-            'secid': '90.000001',  # 90=指数类型, 000001=上证指数
+            'secid': '1.000001',  # 1=上海市场, 000001=上证指数
             'fields1': 'f1,f2,f3,f4,f5,f6,f7',
             'fields2': 'f51,f52,f53,f54,f55,f56,f57',
             'klt': '101',  # 日线
@@ -82,27 +80,21 @@ def get_index_data(start_date, end_date) -> pd.DataFrame:
         }
 
         logger.info(f"获取上证指数数据: {start_date_str} 至 {end_date_str}")
-
         response = requests.get(url, params=params, timeout=10)
 
         if response.status_code == 200:
             data_json = response.json()
+            klines = (data_json.get("data") or {}).get("klines")
 
-            # 检查返回数据
-            if not (data_json.get("data") and data_json["data"].get("klines")):
+            if not klines:
                 logger.warning("未获取到上证指数数据")
                 return pd.DataFrame()
 
-            # 解析数据
-            df = pd.DataFrame([item.split(",") for item in data_json["data"]["klines"]])
+            df = pd.DataFrame([item.split(",") for item in klines])
             df.columns = ['date', 'open', 'close', 'high', 'low', 'volume', 'amount']
-
-            # 转换数据类型
             df['date'] = pd.to_datetime(df['date'])
             df[['open', 'close', 'high', 'low', 'volume', 'amount']] = \
                 df[['open', 'close', 'high', 'low', 'volume', 'amount']].astype(float)
-
-            # 按日期排序
             df.sort_values(by='date', inplace=True)
             df.reset_index(drop=True, inplace=True)
 
