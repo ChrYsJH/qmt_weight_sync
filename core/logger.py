@@ -93,14 +93,28 @@ logger = CustomLogger('qmt_weight_sync', log_file=str(LOG_DIR / 'app.log'))
 
 def create_service_logger(service_name, log_file_name):
     """
-    为特定服务创建独立的 logger 实例
+    为特定服务创建独立的日志文件
+
+    将服务专用的 FileHandler 添加到根 logger 上，
+    使所有模块的日志（包括 ERROR）都写入服务日志文件。
 
     Args:
-        service_name: 服务名称（用于 logger 名称）
+        service_name: 服务名称（用于日志标识）
         log_file_name: 日志文件名（如 'web.log'）
 
     Returns:
-        CustomLogger: 独立的 logger 实例
+        CustomLogger: 全局 logger 实例
     """
     log_file_path = LOG_DIR / log_file_name
-    return CustomLogger(f'qmt_weight_sync.{service_name}', log_file=str(log_file_path))
+    root = logging.getLogger('qmt_weight_sync')
+    # 避免重复添加相同文件的 handler
+    for h in root.handlers:
+        if isinstance(h, FileHandler) and h.baseFilename == str(log_file_path.resolve()):
+            return logger
+    handler = FileHandler(str(log_file_path), mode='a', encoding='utf-8')
+    handler.setFormatter(Formatter(
+        '%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    ))
+    root.addHandler(handler)
+    return logger
