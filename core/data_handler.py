@@ -189,6 +189,7 @@ def validate_and_filter(df: pd.DataFrame) -> pd.DataFrame:
         logger.info(f"过滤非 .SH/.SZ 股票: {filtered_count} 行")
 
     # 过滤权重 <= 0 的记录
+    df['weight'] = pd.to_numeric(df['weight'], errors='coerce').fillna(0)
     before_filter = len(df)
     df = df[df['weight'] > 0].copy()
     filtered_count = before_filter - len(df)
