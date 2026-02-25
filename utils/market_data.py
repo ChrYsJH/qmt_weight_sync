@@ -37,49 +37,20 @@ def load_account_value_history() -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_index_data(start_date, end_date) -> pd.DataFrame:
-    """
-    获取上证指数历史数据（使用东方财富API）
-
-    Args:
-        start_date: 开始日期，支持格式: YYYYMMDD字符串 或 datetime对象
-        end_date: 结束日期，支持格式: YYYYMMDD字符串 或 datetime对象
-
-    Returns:
-        pd.DataFrame: 指数历史数据，包含列: date, open, close, high, low, volume, amount
-    """
+def _get_index_data_eastmoney(start_date_str: str, end_date_str: str) -> pd.DataFrame:
+    """通过东方财富API获取上证指数历史数据"""
     try:
-        # 转换日期格式为YYYYMMDD
-        if isinstance(start_date, str):
-            start_date_str = start_date.replace("-", "")
-        elif isinstance(start_date, datetime):
-            start_date_str = start_date.strftime("%Y%m%d")
-        elif isinstance(start_date, pd.Timestamp):
-            start_date_str = start_date.strftime("%Y%m%d")
-        else:
-            start_date_str = str(start_date).replace("-", "")
-
-        if isinstance(end_date, str):
-            end_date_str = end_date.replace("-", "")
-        elif isinstance(end_date, datetime):
-            end_date_str = end_date.strftime("%Y%m%d")
-        elif isinstance(end_date, pd.Timestamp):
-            end_date_str = end_date.strftime("%Y%m%d")
-        else:
-            end_date_str = str(end_date).replace("-", "")
-
         url = 'https://push2his.eastmoney.com/api/qt/stock/kline/get'
         params = {
-            'secid': '1.000001',  # 1=上海市场, 000001=上证指数
+            'secid': '1.000001',
             'fields1': 'f1,f2,f3,f4,f5,f6,f7',
             'fields2': 'f51,f52,f53,f54,f55,f56,f57',
-            'klt': '101',  # 日线
-            'fqt': '0',    # 不复权（指数无需复权）
+            'klt': '101',
+            'fqt': '0',
             'beg': start_date_str,
             'end': end_date_str,
         }
 
-        logger.info(f"获取上证指数数据: {start_date_str} 至 {end_date_str}")
         response = requests.get(url, params=params, timeout=10)
 
         if response.status_code == 200:
@@ -87,7 +58,7 @@ def get_index_data(start_date, end_date) -> pd.DataFrame:
             klines = (data_json.get("data") or {}).get("klines")
 
             if not klines:
-                logger.warning("未获取到上证指数数据")
+                logger.warning("东方财富: 未获取到上证指数数据")
                 return pd.DataFrame()
 
             df = pd.DataFrame([item.split(",") for item in klines])
@@ -97,16 +68,103 @@ def get_index_data(start_date, end_date) -> pd.DataFrame:
                 df[['open', 'close', 'high', 'low', 'volume', 'amount']].astype(float)
             df.sort_values(by='date', inplace=True)
             df.reset_index(drop=True, inplace=True)
-
-            logger.info(f"成功获取 {len(df)} 条上证指数数据")
             return df
         else:
-            logger.error(f"获取上证指数数据失败，HTTP状态码: {response.status_code}")
+            logger.warning(f"东方财富: HTTP状态码 {response.status_code}")
             return pd.DataFrame()
 
     except Exception as e:
-        logger.error(f"获取上证指数数据异常: {e}", exc_info=True)
+        logger.warning(f"东方财富API不可用: {e}")
         return pd.DataFrame()
+
+
+def _get_index_data_sina(start_date_str: str, end_date_str: str) -> pd.DataFrame:
+    """通过新浪财经API获取上证指数历史数据（备用数据源）"""
+    try:
+        start_dt = pd.to_datetime(start_date_str)
+        end_dt = pd.to_datetime(end_date_str)
+        # 估算需要的交易日数量（日历天数 * 0.7 + 余量）
+        calendar_days = (end_dt - start_dt).days + 1
+        datalen = max(int(calendar_days * 0.8) + 20, 60)
+
+        url = 'https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData'
+        params = {
+            'symbol': 'sh000001',
+            'scale': '240',
+            'ma': 'no',
+            'datalen': str(datalen),
+        }
+
+        response = requests.get(url, params=params, timeout=10)
+
+        if response.status_code == 200:
+            data = response.json()
+            if not data:
+                logger.warning("新浪: 未获取到上证指数数据")
+                return pd.DataFrame()
+
+            df = pd.DataFrame(data)
+            df = df.rename(columns={'day': 'date'})
+            df['date'] = pd.to_datetime(df['date'])
+            for col in ['open', 'close', 'high', 'low', 'volume']:
+                df[col] = df[col].astype(float)
+            if 'amount' not in df.columns:
+                df['amount'] = 0.0
+
+            # 按日期范围过滤
+            df = df[(df['date'] >= start_dt) & (df['date'] <= end_dt)]
+            df = df[['date', 'open', 'close', 'high', 'low', 'volume', 'amount']]
+            df.sort_values(by='date', inplace=True)
+            df.reset_index(drop=True, inplace=True)
+            return df
+        else:
+            logger.warning(f"新浪: HTTP状态码 {response.status_code}")
+            return pd.DataFrame()
+
+    except Exception as e:
+        logger.warning(f"新浪API不可用: {e}")
+        return pd.DataFrame()
+
+
+def get_index_data(start_date, end_date) -> pd.DataFrame:
+    """
+    获取上证指数历史数据（东方财富为主，新浪为备用）
+
+    Args:
+        start_date: 开始日期，支持格式: YYYYMMDD字符串 或 datetime对象
+        end_date: 结束日期，支持格式: YYYYMMDD字符串 或 datetime对象
+
+    Returns:
+        pd.DataFrame: 指数历史数据，包含列: date, open, close, high, low, volume, amount
+    """
+    # 转换日期格式为YYYYMMDD
+    def _to_date_str(d):
+        if isinstance(d, str):
+            return d.replace("-", "")
+        elif isinstance(d, (datetime, pd.Timestamp)):
+            return d.strftime("%Y%m%d")
+        return str(d).replace("-", "")
+
+    start_date_str = _to_date_str(start_date)
+    end_date_str = _to_date_str(end_date)
+
+    logger.info(f"获取上证指数数据: {start_date_str} 至 {end_date_str}")
+
+    # 先尝试东方财富
+    df = _get_index_data_eastmoney(start_date_str, end_date_str)
+    if len(df) > 0:
+        logger.info(f"成功获取 {len(df)} 条上证指数数据（东方财富）")
+        return df
+
+    # 东方财富失败，切换新浪
+    logger.info("东方财富API不可用，切换到新浪数据源")
+    df = _get_index_data_sina(start_date_str, end_date_str)
+    if len(df) > 0:
+        logger.info(f"成功获取 {len(df)} 条上证指数数据（新浪）")
+        return df
+
+    logger.error("所有数据源均无法获取上证指数数据")
+    return pd.DataFrame()
 
 
 def calculate_returns(df: pd.DataFrame, value_column: str, date_column: str = 'date') -> pd.DataFrame:
